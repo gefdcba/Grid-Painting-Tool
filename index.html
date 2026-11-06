@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>n × n 网格填色</title>
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    font-family: system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+    background: #f5f6f8;
+    color: #222;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  h1 { font-size: 20px; margin: 0; font-weight: 600; }
+
+  .panel {
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px 16px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .07);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    max-width: 92vw;
+  }
+
+  .panel.col {
+    flex-direction: column;
+    align-items: stretch;
+    width: min(640px, 92vw);
+  }
+  .panel.col .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  label { font-size: 15px; }
+
+  input[type="number"] {
+    width: 76px;
+    padding: 7px 9px;
+    font-size: 15px;
+    border: 1px solid #ccd2de;
+    border-radius: 8px;
+    outline: none;
+  }
+  input[type="number"]:focus { border-color: #6b7cff; }
+
+  textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 10px 12px;
+    font-family: ui-monospace, Consolas, "Courier New", monospace;
+    font-size: 14px;
+    line-height: 1.55;
+    color: #222;
+    border: 1px solid #ccd2de;
+    border-radius: 8px;
+    outline: none;
+    resize: vertical;
+    background: #fbfcfe;
+  }
+  textarea:focus { border-color: #6b7cff; background: #fff; }
+
+  .btn {
+    cursor: pointer;
+    font-size: 15px;
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: 1px solid #ccd2de;
+    background: #fff;
+    color: #222;
+    transition: background .15s, border-color .15s;
+  }
+  .btn:hover { background: #eef1ff; border-color: #aab4ff; }
+  .btn.primary {
+    background: #4a6cf7;
+    border-color: #4a6cf7;
+    color: #fff;
+  }
+  .btn.primary:hover { background: #3a5ce5; }
+
+  /* 调色板 */
+  .palette { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .swatch {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    border: 3px solid transparent;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: transform .12s, outline-color .12s;
+    outline: 3px solid transparent;
+    outline-offset: 2px;
+  }
+  .swatch:hover { transform: translateY(-2px); }
+  .swatch.active { outline-color: #222; transform: translateY(-2px); }
+
+  /* 网格 */
+  #grid {
+    display: grid;
+    gap: 2px;
+    padding: 2px;
+    background: #cfd4de;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .08);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .cell {
+    background: #fff;
+    border-radius: 3px;
+    aspect-ratio: 1 / 1;
+    cursor: pointer;
+    transition: background .1s, box-shadow .1s;
+  }
+  .cell:hover { box-shadow: inset 0 0 0 2px #7b8bff; }
+
+  .hint { font-size: 13px; color: #667; margin: 0; }
+  kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 12px;
+    font-family: inherit;
+    border: 1px solid #c3c9d6;
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    background: #f3f5fa;
+    color: #333;
+  }
+</style>
+</head>
+<body>
+
+  <h1>🎨 n × n 网格填色</h1>
+
+  <div class="panel">
+    <label for="sizeInput">网格大小 n：</label>
+    <input type="number" id="sizeInput" value="5" min="1" max="60">
+    <button class="btn primary" id="generateBtn">生成网格</button>
+    <button class="btn" id="clearBtn">清空颜色</button>
+    <span class="hint" id="info"></span>
+  </div>
+
+  <div class="panel col">
+    <label for="colorInput">
+      批量填色：<strong>第一行写 n</strong>，之后 n 行每行 n 个颜色编号；
+      按「编号 % 10」取色，<strong>负数或缺失视为空格</strong>。
+    </label>
+    <textarea id="colorInput" spellcheck="false"
+      placeholder="示例：&#10;3&#10;1 2 3&#10;4 5 6&#10;7 8 9"></textarea>
+    <div class="row">
+      <button class="btn primary" id="applyColorBtn">应用批量填色</button>
+      <span class="hint" id="parseInfo"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <span class="hint">选择颜色（按键盘 <kbd>1</kbd>~<kbd>9</kbd>、<kbd>0</kbd> 也可切换）：</span>
+    <div class="palette" id="palette"></div>
+  </div>
+
+  <div id="grid"></div>
+
+  <p class="hint">
+    按数字键 <kbd>1</kbd>~<kbd>9</kbd>、<kbd>0</kbd> 选择颜色。<br>
+    单击空白格子填色，单击已填色格子取消填色。<br>
+    按住鼠标（或手指）拖拽可连续操作：起始格为空则一路染色，起始格已有颜色则一路取消染色。<br>
+    改变 n 时，以左上角为基准保留重叠区域的颜色：n 变大新增格子为空，n 变小则裁掉超出范围的颜色。
+  </p>
+
+<script>
+  /* ---------- 颜色定义（1~9 与 0 共 10 种） ---------- */
+  const COLORS = {
+    '1': { hex: '#e63946', name: '红', fg: '#fff' },
+    '2': { hex: '#f77f00', name: '橙', fg: '#fff' },
+    '3': { hex: '#ffd166', name: '黄', fg: '#4a3b00' },
+    '4': { hex: '#4caf50', name: '绿', fg: '#fff' },
+    '5': { hex: '#00b4d8', name: '青', fg: '#fff' },
+    '6': { hex: '#3a86ff', name: '蓝', fg: '#fff' },
+    '7': { hex: '#8338ec', name: '紫', fg: '#fff' },
+    '8': { hex: '#ff70a6', name: '粉', fg: '#fff' },
+    '9': { hex: '#8d5524', name: '棕', fg: '#fff' },
+    '0': { hex: '#22223b', name: '黑', fg: '#fff' }
+  };
+  const ORDER = ['1','2','3','4','5','6','7','8','9','0'];
+
+  /* ---------- 全局状态 ---------- */
+  const gridEl      = document.getElementById('grid');
+  const paletteEl   = document.getElementById('palette');
+  const sizeInput   = document.getElementById('sizeInput');
+  const colorInput  = document.getElementById('colorInput');
+  const infoEl      = document.getElementById('info');
+  const parseInfoEl = document.getElementById('parseInfo');
+
+  let n = 0;            // 当前网格边长
+  let grid = [];        // grid[r][c] = 颜色键 或 null（未填色）
+  let cells = [];       // cells[r][c] = DOM 元素
+  let selected = '1';   // 当前选中的颜色键
+
+  // 拖拽状态
+  let isDragging = false;
+  let dragMode = null;  // 'fill' | 'erase'
+
+  /* ---------- 调色板 ---------- */
+  function buildPalette() {
+    ORDER.forEach(key => {
+      const c = COLORS[key];
+      const btn = document.createElement('button');
+      btn.className = 'swatch';
+      btn.textContent = key;
+      btn.title = `${c.name}（按键盘 ${key}）`;
+      btn.dataset.key = key;
+      btn.style.background = c.hex;
+      btn.style.color = c.fg;
+      if (key === selected) btn.classList.add('active');
+      btn.addEventListener('click', () => selectColor(key));
+      paletteEl.appendChild(btn);
+    });
+  }
+
+  function selectColor(key) {
+    selected = key;
+    updatePaletteActive();
+  }
+
+  function updatePaletteActive() {
+    [...paletteEl.children].forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.key === selected);
+    });
+  }
+
+  /* ---------- 键盘选色 ---------- */
+  function isTypingTarget(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
+
+  document.addEventListener('keydown', e => {
+    if (isTypingTarget(e.target)) return;          // 输入框里正常打字
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (Object.prototype.hasOwnProperty.call(COLORS, e.key)) {
+      e.preventDefault();
+      selectColor(e.key);
+    }
+  });
+
+  /* ---------- 解析批量填色文本 ---------- */
+  function parseColorInput(text) {
+    const lines = text.split(/\r?\n/);
+
+    // 第一行（跳过前导空行）的第一个数字作为 n
+    let i = 0;
+    while (i < lines.length && lines[i].trim() === '') i++;
+    if (i >= lines.length) return null;
+
+    const firstNums = lines[i].match(/-?\d+/g);
+    if (!firstNums || firstNums.length === 0) return null;
+
+    let size = parseInt(firstNums[0], 10);
+    if (!Number.isFinite(size) || size <= 0) return null;
+    size = Math.min(size, 60);
+    i++;
+
+    // 之后最多 size 行，每行取前 size 个整数
+    const gridData = [];
+    for (let r = 0; r < size; r++) {
+      const row = new Array(size).fill(null);
+      if (i + r < lines.length) {
+        const nums = lines[i + r].match(/-?\d+/g) || [];
+        const lim = Math.min(size, nums.length);
+        for (let c = 0; c < lim; c++) {
+          const v = parseInt(nums[c], 10);
+          if (Number.isFinite(v) && v >= 0) {
+            row[c] = String(v % 10);   // 编号 % 10 得到颜色键 '0'~'9'
+          }
+          // 负数保持 null（视为空）
+        }
+      }
+      gridData.push(row);
+    }
+
+    return { n: size, grid: gridData };
+  }
+
+  /* ---------- 生成 / 调整网格 ---------- */
+  // initialGrid 为 null 时，按“保留左上角重叠区域”规则继承旧颜色；
+  // 传入二维数组时，直接使用该数据（批量填色）。
+  function buildGrid(size, initialGrid = null) {
+    const oldGrid = grid;
+    const oldN = n;
+    const keep = Math.min(oldN, size);
+
+    n = size;
+    gridEl.innerHTML = '';
+    grid = [];
+    cells = [];
+
+    gridEl.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+
+    const target = 60, gap = 2, pad = 2;
+    let w = n * target + (n - 1) * gap + pad * 2;
+    w = Math.min(w, 640, window.innerWidth * 0.9);
+    gridEl.style.width = Math.max(w, 40) + 'px';
+
+    const frag = document.createDocumentFragment();
+
+    for (let r = 0; r < n; r++) {
+      grid.push(new Array(n).fill(null));
+      cells.push([]);
+
+      for (let c = 0; c < n; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.r = r;
+        cell.dataset.c = c;
+
+        // 决定该格的初始颜色
+        let key = null;
+        if (initialGrid) {
+          const row = initialGrid[r];
+          if (row) key = row[c] ?? null;
+        } else if (r < keep && c < keep && oldGrid[r]) {
+          key = oldGrid[r][c];
+        }
+
+        if (key != null && COLORS[key]) {
+          grid[r][c] = key;
+          cell.style.background = COLORS[key].hex;
+        }
+
+        cell.addEventListener('pointerdown', e => {
+          if (e.button > 0) return;         // 只响应左键 / 触摸
+          e.preventDefault();
+          isDragging = true;
+          dragMode = grid[r][c] === null ? 'fill' : 'erase';
+          applyCell(r, c, dragMode);
+        });
+
+        frag.appendChild(cell);
+        cells[r].push(cell);
+      }
+    }
+
+    gridEl.appendChild(frag);
+
+    let text = `当前：${n} × ${n}（共 ${n * n} 格）`;
+    if (initialGrid) {
+      text += '，已按输入批量填色';
+    } else if (oldN > 0 && oldN !== n) {
+      text += oldN < n
+        ? '，已保留原有颜色并扩展'
+        : '，已保留重叠区域颜色并裁掉超出部分';
+    }
+    infoEl.textContent = text;
+  }
+
+  /* ---------- 对单个格子执行「染色」或「取消染色」 ---------- */
+  function applyCell(r, c, mode) {
+    if (mode === 'fill') {
+      if (grid[r][c] === null) {
+        grid[r][c] = selected;
+        cells[r][c].style.background = COLORS[selected].hex;
+      }
+    } else if (mode === 'erase') {
+      if (grid[r][c] !== null) {
+        grid[r][c] = null;
+        cells[r][c].style.background = '';
+      }
+    }
+  }
+
+  /* ---------- 拖拽经过 ---------- */
+  document.addEventListener('pointermove', e => {
+    if (!isDragging) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el) return;
+    const cell = el.closest('.cell');
+    if (!cell) return;
+
+    const r = Number(cell.dataset.r);
+    const c = Number(cell.dataset.c);
+    if (!Number.isInteger(r) || !Number.isInteger(c)) return;
+
+    applyCell(r, c, dragMode);
+  });
+
+  /* ---------- 结束拖拽 ---------- */
+  function endDrag() {
+    isDragging = false;
+    dragMode = null;
+  }
+  document.addEventListener('pointerup', endDrag);
+  document.addEventListener('pointercancel', endDrag);
+  window.addEventListener('blur', endDrag);
+
+  /* ---------- 清空所有颜色 ---------- */
+  function clearAll() {
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        grid[r][c] = null;
+        cells[r][c].style.background = '';
+      }
+    }
+    infoEl.textContent = `当前：${n} × ${n}（共 ${n * n} 格）`;
+  }
+
+  /* ---------- 事件绑定 ---------- */
+  document.getElementById('generateBtn').addEventListener('click', () => {
+    let size = parseInt(sizeInput.value, 10);
+    if (!Number.isFinite(size)) size = 5;
+    size = Math.max(1, Math.min(60, size));
+    sizeInput.value = size;
+    buildGrid(size);
+  });
+
+  sizeInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('generateBtn').click();
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', clearAll);
+
+  // 应用批量填色
+  document.getElementById('applyColorBtn').addEventListener('click', () => {
+    const parsed = parseColorInput(colorInput.value);
+    if (!parsed) {
+      parseInfoEl.textContent = '解析失败：第一行需要一个正整数 n。';
+      return;
+    }
+    sizeInput.value = parsed.n;
+    buildGrid(parsed.n, parsed.grid);
+    parseInfoEl.textContent =
+      `已应用：${parsed.n} 行 × ${parsed.n} 列（编号 % 10 取色，负数/缺失为空）。`;
+  });
+
+  /* ---------- 初始化 ---------- */
+  buildPalette();
+  buildGrid(5);
+</script>
+
+</body>
+</html>
